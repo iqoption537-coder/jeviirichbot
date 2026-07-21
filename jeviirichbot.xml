@@ -1,31 +1,85 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <xml xmlns="https://developers.google.com/blockly/xml">
   <variables>
-    <variable id="current_stake">current_stake</variable>
-    <variable id="current_prediction">current_prediction</variable>
-    <variable id="total_profit_loss">total_profit_loss</variable>
-    <variable id="is_in_trade">is_in_trade</variable>
-    <variable id="contract_id">contract_id</variable>
-    <variable id="profit">profit</variable>
+    <variable id="stake_amount">stake_amount</variable>
+    <variable id="profit_loss">profit_loss</variable>
+    <variable id="total_profit">total_profit</variable>
   </variables>
 
-  <!-- Main Strategy Block -->
-  <block type="trade_definition_market" id="market_block" x="50" y="50">
+  <!-- Main Trade Definition -->
+  <block type="trade_definition" id="trade_1" x="20" y="20">
     <field name="MARKET_LIST">synthetic_index</field>
     <field name="SYMBOL_LIST">R_25</field>
+    
     <next>
-      <block type="trade_definition_contract" id="contract_block">
-        <field name="TRADETYPE_LIST">DIGITUNDER</field>
-        <field name="DURATIONTYPE_LIST">t</field>
-        <field name="DURATION">1</field>
-        <field name="CURRENCY_LIST">USD</field>
-        <field name="AMOUNT">0.5</field>
+      <block type="trade_type" id="trade_type_1">
+        <field name="TYPE_LIST">DIGITUNDER</field>
+        
         <next>
-          <block type="trade_definition_restart" id="restart_block">
+          <block type="trade_parameters" id="trade_params_1">
+            <field name="PAYOUT_TYPE">stake</field>
+            <value name="STAKE">
+              <block type="math_number" id="stake_value">
+                <field name="NUM">0.5</field>
+              </block>
+            </value>
+            
             <next>
-              <block type="during_purchase" id="during_purchase_block">
+              <block type="trade_duration" id="duration_1">
+                <field name="DURATION_TYPE">ticks</field>
+                <value name="DURATION">
+                  <block type="math_number" id="duration_value">
+                    <field name="NUM">1</field>
+                  </block>
+                </value>
+                
                 <next>
-                  <block type="after_purchase" id="after_purchase_block">
+                  <block type="logic_controls_if" id="if_block_1">
+                    <mutation else="true"/>
+                    <value name="IF0">
+                      <block type="logic_compare" id="compare_1">
+                        <field name="OP">GT</field>
+                        <value name="A">
+                          <block type="variables_get" id="get_profit">
+                            <field name="VAR">profit_loss</field>
+                          </block>
+                        </value>
+                        <value name="B">
+                          <block type="math_number" id="profit_threshold">
+                            <field name="NUM">25</field>
+                          </block>
+                        </value>
+                      </block>
+                    </value>
+                    <statement name="DO0">
+                      <block type="notify_message" id="notify_profit">
+                        <field name="MESSAGE">Take Profit Hit! Stopping.</field>
+                      </block>
+                    </statement>
+                    <statement name="ELSE">
+                      <block type="logic_controls_if" id="if_block_loss">
+                        <value name="IF0">
+                          <block type="logic_compare" id="compare_loss">
+                            <field name="OP">LT</field>
+                            <value name="A">
+                              <block type="variables_get" id="get_loss">
+                                <field name="VAR">profit_loss</field>
+                              </block>
+                            </value>
+                            <value name="B">
+                              <block type="math_number" id="loss_threshold">
+                                <field name="NUM">-50</field>
+                              </block>
+                            </value>
+                          </block>
+                        </value>
+                        <statement name="DO0">
+                          <block type="notify_message" id="notify_loss">
+                            <field name="MESSAGE">Stop Loss Hit! Stopping.</field>
+                          </block>
+                        </statement>
+                      </block>
+                    </statement>
                   </block>
                 </next>
               </block>
