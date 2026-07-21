@@ -1,240 +1,39 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<strategy>
-  <name>Deriv Bot - Volatility Trading Strategy</name>
-  <description>Automated trading bot for Deriv with Martingale recovery strategy</description>
-  
-  <!-- Configuration -->
-  <config>
-    <app_id>1089</app_id>
-    <api_token>YOUR_DERIV_API_TOKEN</api_token>
-    <symbol>R_25</symbol>
-    <initial_stake>0.5</initial_stake>
-    <take_profit>25.0</take_profit>
-    <stop_loss>50.0</stop_loss>
-    <initial_prediction>8</initial_prediction>
-    <recovery_prediction>5</recovery_prediction>
-    <martingale_multiplier>2.0</martingale_multiplier>
-    <use_martingale>true</use_martingale>
-  </config>
+<xml xmlns="https://developers.google.com/blockly/xml">
+  <variables>
+    <variable id="current_stake">current_stake</variable>
+    <variable id="current_prediction">current_prediction</variable>
+    <variable id="total_profit_loss">total_profit_loss</variable>
+    <variable id="is_in_trade">is_in_trade</variable>
+    <variable id="contract_id">contract_id</variable>
+    <variable id="profit">profit</variable>
+  </variables>
 
-  <!-- Strategy Logic -->
-  <blocks>
-    
-    <!-- Initialize Variables -->
-    <block type="init">
-      <variable name="current_stake">0.5</variable>
-      <variable name="current_prediction">8</variable>
-      <variable name="total_profit_loss">0.0</variable>
-      <variable name="is_in_trade">false</variable>
-    </block>
-
-    <!-- Main Trading Loop -->
-    <block type="loop">
-      
-      <!-- Subscribe to Price Ticks -->
-      <block type="subscribe">
-        <action type="ticks">
-          <symbol>R_25</symbol>
-        </action>
-      </block>
-
-      <!-- Monitor Incoming Ticks -->
-      <block type="condition" name="check_tick">
-        <condition operator="and">
-          <condition operator="equals">
-            <param name="msg_type">tick</param>
-          </condition>
-          <condition operator="equals">
-            <param name="is_in_trade">false</param>
-          </condition>
-        </condition>
-        
-        <!-- Extract Last Digit from Price -->
-        <block type="extract">
-          <variable name="tick_price" source="response.tick.quote"/>
-          <variable name="last_digit" source="response.tick.quote" operation="last_digit"/>
-        </block>
-
-        <!-- Entry Signal: Last Digit > 8 -->
-        <block type="condition" name="entry_signal">
-          <condition operator="greater_than">
-            <param name="last_digit">8</param>
-          </condition>
-          
-          <block type="log">
-            <message>Signal Triggered! Last Digit: {last_digit}. Placing trade...</message>
-          </block>
-
-          <block type="action" name="set_in_trade">
-            <variable name="is_in_trade">true</variable>
-          </block>
-
-          <!-- Send Proposal for DIGITUNDER -->
-          <block type="proposal">
-            <param name="amount">current_stake</param>
-            <param name="basis">stake</param>
-            <param name="contract_type">DIGITUNDER</param>
-            <param name="currency">USD</param>
-            <param name="duration">1</param>
-            <param name="duration_unit">t</param>
-            <param name="symbol">R_25</param>
-            <param name="barrier">current_prediction</param>
-          </block>
-        </block>
-      </block>
-
-      <!-- Handle Proposal Response -->
-      <block type="condition" name="handle_proposal">
-        <condition operator="and">
-          <condition operator="equals">
-            <param name="msg_type">proposal</param>
-          </condition>
-          <condition operator="equals">
-            <param name="is_in_trade">true</param>
-          </condition>
-        </condition>
-
-        <block type="error_check">
-          <block type="log">
-            <message>Proposal received. Proceeding with purchase...</message>
-          </block>
-        </block>
-
-        <!-- Execute Purchase -->
-        <block type="buy">
-          <proposal_id>response.proposal.id</proposal_id>
-          <price>current_stake</price>
-        </block>
-      </block>
-
-      <!-- Handle Trade Settlement -->
-      <block type="condition" name="handle_buy">
-        <condition operator="equals">
-          <param name="msg_type">buy</param>
-        </condition>
-
-        <!-- Store Contract ID -->
-        <block type="extract">
-          <variable name="contract_id" source="response.buy.contract_id"/>
-        </block>
-
-        <block type="log">
-          <message>Contract Purchased ID: {contract_id}. Awaiting result...</message>
-        </block>
-
-        <!-- Subscribe to Monitor Contract -->
-        <block type="subscribe">
-          <action type="proposal_open_contract">
-            <contract_id>contract_id</contract_id>
-          </action>
-        </block>
-      </block>
-
-      <!-- Monitor Contract Outcome -->
-      <block type="condition" name="monitor_contract">
-        <condition operator="equals">
-          <param name="msg_type">proposal_open_contract</param>
-        </condition>
-
-        <block type="condition" name="check_settlement">
-          <condition operator="equals">
-            <param name="response.proposal_open_contract.is_sold">true</param>
-          </condition>
-
-          <!-- Extract Profit/Loss -->
-          <block type="extract">
-            <variable name="profit" source="response.proposal_open_contract.profit" default="0.0"/>
-          </block>
-
-          <!-- Update Total P/L -->
-          <block type="calculate">
-            <variable name="total_profit_loss">
-              <operation>add</operation>
-              <operand1>total_profit_loss</operand1>
-              <operand2>profit</operand2>
-            </variable>
-          </block>
-
-          <block type="log">
-            <message>Trade Closed. Profit/Loss: ${profit:.2f} | Total P/L: ${total_profit_loss:.2f}</message>
-          </block>
-
-          <!-- Win Condition -->
-          <block type="condition" name="check_profit">
-            <condition operator="greater_than">
-              <param name="profit">0</param>
-            </condition>
-
-            <block type="action">
-              <variable name="current_stake">0.5</variable>
-              <variable name="current_prediction">8</variable>
-            </block>
-          </block>
-
-          <!-- Loss Condition -->
-          <block type="condition" name="check_loss">
-            <condition operator="less_than_or_equal">
-              <param name="profit">0</param>
-            </condition>
-
-            <block type="action">
-              <variable name="current_prediction">5</variable>
-            </block>
-
-            <block type="condition" name="apply_martingale">
-              <condition operator="equals">
-                <param name="use_martingale">true</param>
-              </condition>
-
-              <block type="calculate">
-                <variable name="current_stake">
-                  <operation>multiply</operation>
-                  <operand1>current_stake</operand1>
-                  <operand2>2.0</operand2>
-                </variable>
+  <!-- Main Strategy Block -->
+  <block type="trade_definition_market" id="market_block" x="50" y="50">
+    <field name="MARKET_LIST">synthetic_index</field>
+    <field name="SYMBOL_LIST">R_25</field>
+    <next>
+      <block type="trade_definition_contract" id="contract_block">
+        <field name="TRADETYPE_LIST">DIGITUNDER</field>
+        <field name="DURATIONTYPE_LIST">t</field>
+        <field name="DURATION">1</field>
+        <field name="CURRENCY_LIST">USD</field>
+        <field name="AMOUNT">0.5</field>
+        <next>
+          <block type="trade_definition_restart" id="restart_block">
+            <next>
+              <block type="during_purchase" id="during_purchase_block">
+                <next>
+                  <block type="after_purchase" id="after_purchase_block">
+                  </block>
+                </next>
               </block>
-            </block>
+            </next>
           </block>
-
-          <!-- Risk Management: Take Profit -->
-          <block type="condition" name="check_take_profit">
-            <condition operator="greater_than_or_equal">
-              <param name="total_profit_loss">25.0</param>
-            </condition>
-
-            <block type="log">
-              <message>Take Profit Hit! Stopping bot.</message>
-            </block>
-
-            <block type="action">
-              <break/>
-            </block>
-          </block>
-
-          <!-- Risk Management: Stop Loss -->
-          <block type="condition" name="check_stop_loss">
-            <condition operator="less_than_or_equal">
-              <param name="total_profit_loss">-50.0</param>
-            </condition>
-
-            <block type="log">
-              <message>Stop Loss Hit! Stopping bot.</message>
-            </block>
-
-            <block type="action">
-              <break/>
-            </block>
-          </block>
-
-          <!-- Reset Trade State -->
-          <block type="action">
-            <variable name="is_in_trade">false</variable>
-          </block>
-        </block>
+        </next>
       </block>
+    </next>
+  </block>
 
-    </block>
-
-  </blocks>
-
-</strategy>
+</xml>
