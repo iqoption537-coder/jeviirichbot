@@ -22,10 +22,10 @@
     
     <!-- Initialize Variables -->
     <block type="init">
-      <variable name="current_stake" value="0.5" />
-      <variable name="current_prediction" value="8" />
-      <variable name="total_profit_loss" value="0.0" />
-      <variable name="is_in_trade" value="false" />
+      <variable name="current_stake">0.5</variable>
+      <variable name="current_prediction">8</variable>
+      <variable name="total_profit_loss">0.0</variable>
+      <variable name="is_in_trade">false</variable>
     </block>
 
     <!-- Main Trading Loop -->
@@ -41,22 +41,24 @@
       <!-- Monitor Incoming Ticks -->
       <block type="condition" name="check_tick">
         <condition operator="and">
-          <param name="msg_type" operator="equals">tick</param>
-          <param name="is_in_trade" operator="equals">false</param>
+          <condition operator="equals">
+            <param name="msg_type">tick</param>
+          </condition>
+          <condition operator="equals">
+            <param name="is_in_trade">false</param>
+          </condition>
         </condition>
         
         <!-- Extract Last Digit from Price -->
         <block type="extract">
-          <variable name="tick_price" source="response.tick.quote" />
-          <variable name="last_digit" operation="extract_last_digit">
-            <input>tick_price</input>
-          </variable>
+          <variable name="tick_price" source="response.tick.quote"/>
+          <variable name="last_digit" source="response.tick.quote" operation="last_digit"/>
         </block>
 
         <!-- Entry Signal: Last Digit > 8 -->
         <block type="condition" name="entry_signal">
-          <condition>
-            <param name="last_digit" operator="greater_than">8</param>
+          <condition operator="greater_than">
+            <param name="last_digit">8</param>
           </condition>
           
           <block type="log">
@@ -64,7 +66,7 @@
           </block>
 
           <block type="action" name="set_in_trade">
-            <variable name="is_in_trade" value="true" />
+            <variable name="is_in_trade">true</variable>
           </block>
 
           <!-- Send Proposal for DIGITUNDER -->
@@ -84,17 +86,18 @@
       <!-- Handle Proposal Response -->
       <block type="condition" name="handle_proposal">
         <condition operator="and">
-          <param name="msg_type" operator="equals">proposal</param>
-          <param name="is_in_trade" operator="equals">true</param>
+          <condition operator="equals">
+            <param name="msg_type">proposal</param>
+          </condition>
+          <condition operator="equals">
+            <param name="is_in_trade">true</param>
+          </condition>
         </condition>
 
         <block type="error_check">
-          <on_error>
-            <block type="log">
-              <message>Proposal Error: {response.error.message}</message>
-            </block>
-            <variable name="is_in_trade" value="false" />
-          </on_error>
+          <block type="log">
+            <message>Proposal received. Proceeding with purchase...</message>
+          </block>
         </block>
 
         <!-- Execute Purchase -->
@@ -106,22 +109,13 @@
 
       <!-- Handle Trade Settlement -->
       <block type="condition" name="handle_buy">
-        <condition>
-          <param name="msg_type" operator="equals">buy</param>
+        <condition operator="equals">
+          <param name="msg_type">buy</param>
         </condition>
-
-        <block type="error_check">
-          <on_error>
-            <block type="log">
-              <message>Buy Error: {response.error.message}</message>
-            </block>
-            <variable name="is_in_trade" value="false" />
-          </on_error>
-        </block>
 
         <!-- Store Contract ID -->
         <block type="extract">
-          <variable name="contract_id" source="response.buy.contract_id" />
+          <variable name="contract_id" source="response.buy.contract_id"/>
         </block>
 
         <block type="log">
@@ -138,23 +132,24 @@
 
       <!-- Monitor Contract Outcome -->
       <block type="condition" name="monitor_contract">
-        <condition>
-          <param name="msg_type" operator="equals">proposal_open_contract</param>
+        <condition operator="equals">
+          <param name="msg_type">proposal_open_contract</param>
         </condition>
 
         <block type="condition" name="check_settlement">
-          <condition>
-            <param name="response.proposal_open_contract.is_sold" operator="equals">true</param>
+          <condition operator="equals">
+            <param name="response.proposal_open_contract.is_sold">true</param>
           </condition>
 
           <!-- Extract Profit/Loss -->
           <block type="extract">
-            <variable name="profit" source="response.proposal_open_contract.profit" default="0.0" />
+            <variable name="profit" source="response.proposal_open_contract.profit" default="0.0"/>
           </block>
 
           <!-- Update Total P/L -->
           <block type="calculate">
-            <variable name="total_profit_loss" operation="add">
+            <variable name="total_profit_loss">
+              <operation>add</operation>
               <operand1>total_profit_loss</operand1>
               <operand2>profit</operand2>
             </variable>
@@ -166,27 +161,34 @@
 
           <!-- Win Condition -->
           <block type="condition" name="check_profit">
-            <condition>
-              <param name="profit" operator="greater_than">0</param>
+            <condition operator="greater_than">
+              <param name="profit">0</param>
             </condition>
 
             <block type="action">
-              <variable name="current_stake" value="0.5" />
-              <variable name="current_prediction" value="8" />
+              <variable name="current_stake">0.5</variable>
+              <variable name="current_prediction">8</variable>
             </block>
           </block>
 
           <!-- Loss Condition -->
-          <block type="else_condition">
-            <variable name="current_prediction" value="5" />
+          <block type="condition" name="check_loss">
+            <condition operator="less_than_or_equal">
+              <param name="profit">0</param>
+            </condition>
+
+            <block type="action">
+              <variable name="current_prediction">5</variable>
+            </block>
 
             <block type="condition" name="apply_martingale">
-              <condition>
-                <param name="use_martingale" operator="equals">true</param>
+              <condition operator="equals">
+                <param name="use_martingale">true</param>
               </condition>
 
               <block type="calculate">
-                <variable name="current_stake" operation="multiply">
+                <variable name="current_stake">
+                  <operation>multiply</operation>
                   <operand1>current_stake</operand1>
                   <operand2>2.0</operand2>
                 </variable>
@@ -196,8 +198,8 @@
 
           <!-- Risk Management: Take Profit -->
           <block type="condition" name="check_take_profit">
-            <condition>
-              <param name="total_profit_loss" operator="greater_than_or_equal">25.0</param>
+            <condition operator="greater_than_or_equal">
+              <param name="total_profit_loss">25.0</param>
             </condition>
 
             <block type="log">
@@ -205,14 +207,14 @@
             </block>
 
             <block type="action">
-              <break />
+              <break/>
             </block>
           </block>
 
           <!-- Risk Management: Stop Loss -->
           <block type="condition" name="check_stop_loss">
-            <condition>
-              <param name="total_profit_loss" operator="less_than_or_equal">-50.0</param>
+            <condition operator="less_than_or_equal">
+              <param name="total_profit_loss">-50.0</param>
             </condition>
 
             <block type="log">
@@ -220,13 +222,13 @@
             </block>
 
             <block type="action">
-              <break />
+              <break/>
             </block>
           </block>
 
           <!-- Reset Trade State -->
           <block type="action">
-            <variable name="is_in_trade" value="false" />
+            <variable name="is_in_trade">false</variable>
           </block>
         </block>
       </block>
